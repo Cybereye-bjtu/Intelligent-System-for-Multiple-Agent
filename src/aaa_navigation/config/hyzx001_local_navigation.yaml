@@ -1,0 +1,75 @@
+mqtt_path_receiver:
+  ros__parameters:
+    broker: ca15b49bc8b442638f0cade1e45585ce.s1.eu.hivemq.cloud
+    port: 8883
+    client_id: aaa-hyzx001-path-edge
+    username_env: HYZX_MQTT_USERNAME
+    password_env: HYZX_MQTT_PASSWORD
+    path_mqtt_topic: edge/hyzx001/path
+    path_ros_topic: /aaa/global_path_local
+    output_frame: odom
+    path_timeout: 0.80
+    max_message_age: 1.50
+    max_points: 2000
+
+scan_preprocessor:
+  ros__parameters:
+    input_topic: /scan
+    output_topic: /aaa/scan_filtered
+    # The M10_P advertises 0--200 m; constrain it to the indoor control range.
+    range_min: 0.05
+    range_max: 20.0
+    median_window: 3
+    filter_rear_self_returns: false
+
+vfh_controller:
+  ros__parameters:
+    scan_topic: /aaa/scan_filtered
+    path_topic: /aaa/global_path_local
+    nominal_cmd_topic: /aaa/cmd_vel_nominal
+    map_frame: odom
+    robot_frame: base_footprint
+    control_frequency: 10.0
+    scan_timeout: 0.35
+    lookahead_distance: 0.60
+    goal_tolerance: 0.15
+    histogram_max_range: 3.0
+    obstacle_threshold: 0.78
+    robot_width: 0.185
+    valley_safety_margin_deg: 10.0
+    max_linear_velocity: 0.10
+    min_effective_linear_velocity: 0.10
+    max_angular_velocity: 0.20
+    max_linear_acceleration: 0.15
+    max_angular_acceleration: 0.30
+
+safety_barrier:
+  ros__parameters:
+    scan_topic: /aaa/scan_filtered
+    odom_topic: /odom
+    nominal_cmd_topic: /aaa/cmd_vel_nominal
+    output_cmd_topic: /aaa/cmd_vel_safe
+    control_frequency: 20.0
+    scan_timeout: 0.35
+    command_timeout: 0.25
+    odom_timeout: 0.50
+    base_clearance: 0.10
+    reaction_time: 0.40
+    braking_deceleration: 0.30
+    hard_stop_distance: 0.10
+    slow_margin: 0.10
+    front_half_angle_deg: 35.0
+    allow_escape_rotation: false
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.20
+    robot_frame: base_footprint
+
+aaa_cmd_gateway:
+  ros__parameters:
+    input_topic: /aaa/cmd_vel_safe
+    output_topic: /aaa/cmd_vel_staged
+    control_frequency: 20.0
+    command_timeout: 0.25
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.20
+    enabled_on_start: false

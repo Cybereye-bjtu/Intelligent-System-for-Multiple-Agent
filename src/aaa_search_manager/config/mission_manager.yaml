@@ -1,0 +1,139 @@
+mission_manager:
+  ros__parameters:
+    robot_ids:
+      - hyzx001
+      - jetson003
+    global_frame: site_map
+    query_topic: /search/mission_query
+    target_found_topic: /search/target_found
+    global_observation_topic: /search/target_observation_global
+    mission_id_topic: /search/mission_id
+    accepted_query_topic: /search/accepted_mission_query
+    accept_legacy_target_found: false
+    navigation_order:
+    # Used only as a deterministic tie-breaker when both robots are equally
+    # distant from their own assigned target-approach poses.
+      - hyzx001
+      - jetson003
+    base_frames:
+      - hyzx001/base_footprint
+      - jetson003/base_link
+    approach_goal_tolerance_m: 0.15
+    approach_goal_dwell_sec: 0.5
+    approach_task_collection_sec: 1.0
+    second_approach_wait_timeout_sec: 30.0
+    state_topic: /search/state
+    exploration_enabled_topic: /search/exploration_enabled
+    target_pose_topic: /search/target_pose
+    reset_topic: /search/reset
+
+target_query_compiler:
+  ros__parameters:
+    accepted_query_topic: /search/accepted_mission_query
+    target_query_topic: /search/target_query
+    status_topic: /search/target_query/status
+    reset_topic: /search/reset
+    runner: /home/szhang/workspace/cybereye_target/.venv/bin/python
+    module_root: /home/szhang/workspace/cybereye_target/cybereye_nl_target_pose
+    model_path: /data2/szhang/model/Qwen3.5-2B
+    adapter_path: /data2/szhang/model/qwen35-2b-cybereye-extractor-lora-v2
+    mode: hybrid
+    max_new_tokens: 512
+    timeout_sec: 300.0
+    gpu_index: 3
+
+target_pose_bridge:
+  ros__parameters:
+    robot_ids:
+      - hyzx001
+      - jetson003
+    base_frames:
+      - hyzx001/base_footprint
+      - jetson003/base_link
+    global_frame: site_map
+    input_topic_prefix: /search/target_observation
+    target_found_topic: /search/target_found
+    global_observation_topic: /search/target_observation_global
+    # Match the deployed SAM3 threshold. The current experiment accepts one
+    # valid metric observation as a confirmed target.
+    min_semantic_confidence: 0.50
+    min_valid_depth_ratio: 0.35
+    min_observation_count: 1
+    tf_timeout_sec: 0.50
+
+approach_goal_generator:
+  ros__parameters:
+    robot_ids:
+      - hyzx001
+      - jetson003
+    base_frames:
+      - hyzx001/base_footprint
+      - jetson003/base_link
+    global_frame: site_map
+    target_topic: /search/target_observation_global
+    navigation_timeout_sec: 180.0
+    radii: [0.3, 0.5, 0.8]
+    angle_samples: 24
+    max_goal_cost: 75
+    lethal_cost: 96
+    min_pair_separation: 0.30
+    tf_timeout_sec: 0.50
+
+cooperative_wfd:
+  ros__parameters:
+    robot_ids:
+      - hyzx001
+      - jetson003
+    base_frames:
+      - hyzx001/base_footprint
+      - jetson003/base_link
+    esdf_topics:
+      - /hyzx001/esdf_map
+      - /jetson003/esdf_map
+    global_frame: site_map
+    map_topic: /swarm/map
+    exploration_enabled_topic: /search/exploration_enabled
+    preview_topic_prefix: /search/wfd/preview_goal
+    goal_topic_prefix: /search/exploration_goal
+    marker_topic: /search/wfd/markers
+    status_topic: /search/wfd/status
+    min_frontier_length_m: 0.50
+    frontier_standoff_distance_m: 0.30
+    # Keep frontier goals outside the deployed A* arrival tolerance.
+    goal_tolerance_m: 0.15
+    # Reassign when the robot has not gained at least one 5 cm cell.
+    progress_timeout_s: 20.0
+    planning_period_s: 2.0
+    # Remains preview-only until this feedback/cancel path passes live commissioning.
+    publish_navigation_goals: true
+    tf_timeout_s: 0.50
+
+semantic_topology:
+  ros__parameters:
+    robot_ids: [hyzx001, jetson003]
+    base_frames: [hyzx001/base_footprint, jetson003/base_link]
+    global_frame: site_map
+    observation_topic_prefix: /semantic_topology/observation
+    map_topic: /swarm/map
+    emergency_stop_topic: /swarm/emergency_stop
+    local_graph_topic_prefix: /semantic_topology/local
+    fused_graph_topic: /semantic_topology/fused
+    output_directory: /home/szhang/.local/share/aaa_ros2_multirobot_find_target/semantic_topology_output
+    detection_confidence: 0.50
+    merge_distance: 0.20
+    min_observations: 1
+    observation_interval: 0.5
+    min_observation_baseline: 0.15
+    max_weight: 10.0
+    stand_off_distance: 0.30
+    visit_radius: 0.30
+    leave_radius: 0.45
+    sample_distance: 0.04
+    sample_yaw_deg: 5.0
+    localization_jump_limit: 0.20
+    minimum_path_length: 0.30
+    occupied_threshold: 50
+    # Footprint clearance checked around navigation_position.
+    robot_safety_radius: 0.15
+    tf_timeout_sec: 0.20
+    pose_update_period: 0.05

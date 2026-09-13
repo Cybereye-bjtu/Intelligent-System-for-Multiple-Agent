@@ -1,0 +1,26 @@
+/**:
+  ros__parameters:
+    use_sim_time: false
+    robot_name: hyzx001
+    input_scan_topic: /scan
+    input_odom_topic: /odom
+    output_scan_topic: scan
+    output_odom_topic: odom
+    odom_parent_frame: odom
+    odom_message_frame: odom_combined
+    base_frame: base_footprint
+    laser_frame: laser
+    publish_tf: true
+    publish_static_tf: true
+    force_planar_odom: true
+    # Make the physical pose at fleet startup the local (0, 0, 0) origin.
+    zero_initial_odom: true
+    # Pair each received scan with the latest odometry sample on the central
+    # machine. This is the legacy receipt-time policy used at this checkpoint.
+    synchronize_scan_to_odom: true
+    max_scan_odom_sync_age: 0.50
+    laser_x: 0.048
+    laser_y: 0.0
+    laser_z: 0.18
+    laser_yaw: 0.0
+    max_odom_age: 0.75

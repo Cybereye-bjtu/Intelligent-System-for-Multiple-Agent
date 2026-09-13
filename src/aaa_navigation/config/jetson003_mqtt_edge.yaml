@@ -1,0 +1,76 @@
+jetson003_mqtt_edge_bridge:
+  ros__parameters:
+    use_sim_time: false
+    broker: ca15b49bc8b442638f0cade1e45585ce.s1.eu.hivemq.cloud
+    port: 8883
+    keepalive_seconds: 60
+    client_id: aaa-jetson003-edge
+    username_env: HYZX_MQTT_USERNAME
+    password_env: HYZX_MQTT_PASSWORD
+    ca_file: /etc/ssl/certs/ca-certificates.crt
+    tls_insecure: false
+    source: jetson003
+    scan_ros_topic: /scan
+    odom_ros_topic: /odom
+    tf_ros_topic: /tf
+    tf_static_ros_topic: /tf_static
+    command_ros_topic: /cmd_vel_edge_nominal
+    scan_mqtt_topic: robot/jetson003/telemetry/scan
+    odom_mqtt_topic: robot/jetson003/telemetry/odom
+    tf_mqtt_topic: robot/jetson003/telemetry/tf
+    tf_static_mqtt_topic: robot/jetson003/telemetry/tf_static
+    status_mqtt_topic: robot/jetson003/telemetry/status
+    command_mqtt_topic: edge/jetson003/car/cmd_vel
+    command_timeout: 0.20
+    command_frequency: 20.0
+    status_frequency: 1.0
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.30
+
+scan_preprocessor:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /scan
+    output_topic: /scan_filtered
+    range_min: 0.10
+    range_max: 10.0
+    median_window: 3
+    filter_rear_self_returns: false
+    rear_start_angle_deg: 125.0
+    rear_self_return_max: 0.30
+
+safety_barrier:
+  ros__parameters:
+    use_sim_time: false
+    scan_topic: /scan_filtered
+    odom_topic: /odom
+    nominal_cmd_topic: /cmd_vel_edge_nominal
+    output_cmd_topic: /cmd_vel_aaa
+    control_frequency: 20.0
+    scan_timeout: 0.35
+    command_timeout: 0.25
+    odom_timeout: 0.50
+    base_clearance: 0.16
+    reaction_time: 0.40
+    braking_deceleration: 0.30
+    hard_stop_distance: 0.20
+    slow_margin: 0.25
+    front_half_angle_deg: 45.0
+    side_angle_min_deg: 30.0
+    side_angle_max_deg: 100.0
+    allow_escape_rotation: false
+    escape_angular_velocity: 0.15
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.30
+    robot_frame: base_link
+
+aaa_cmd_gateway:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /cmd_vel_aaa
+    output_topic: /cmd_vel
+    control_frequency: 20.0
+    command_timeout: 0.25
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.30
+    enabled_on_start: false

@@ -1,0 +1,17 @@
+.mqtt.env
+.hyzx_mqtt.env
+.jetson003_mqtt.env
+build/
+install/
+log/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+.git-backups/
+build.*/
+install.*/
+log.*/
+*.tar.gz
+kettle_rgbd_capture/
+jetson003_target_capture/
+semantic_topology_output/

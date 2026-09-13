@@ -1,0 +1,369 @@
+#!/usr/bin/env sh
+set -e
+
+fleet_workspace=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+fleet_install=${AAA_FLEET_INSTALL_PREFIX:-"$fleet_workspace/install"}
+
+source_base_ros() {
+  # Do not inherit another colcon workspace from the calling shell.  In
+  # particular, an older aaa_ros2_multirobot_find_target overlay can otherwise
+  # take precedence over this workspace's Python packages.
+  unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH
+  if [ -f /opt/ros/jazzy/setup.sh ]; then
+    . /opt/ros/jazzy/setup.sh
+  elif [ -f /opt/ros/humble/setup.sh ]; then
+    . /opt/ros/humble/setup.sh
+  else
+    echo "错误：没有找到 ROS 2 Jazzy 或 Humble。" >&2
+    exit 1
+  fi
+}
+
+source_integration() {
+  source_base_ros
+  if [ ! -f "$fleet_install/setup.sh" ]; then
+    echo "错误：工作空间尚未构建，请先运行：./fleet.sh build" >&2
+    exit 1
+  fi
+  . "$fleet_install/setup.sh"
+}
+
+require_fleet_data() {
+  for topic in /hyzx001/scan /hyzx001/odom /jetson003/scan /jetson003/odom; do
+    if ! timeout 20s ros2 topic echo "$topic" --once \
+      --qos-reliability best_effort >/dev/null 2>&1; then
+      echo "错误：$topic 没有数据。先分别运行 ./fleet.sh hyzx 和 ./fleet.sh jetson。" >&2
+      exit 1
+    fi
+  done
+}
+
+load_env_file() {
+  env_file=$1
+  if [ -f "$env_file" ]; then
+    set -a
+    . "$env_file"
+    set +a
+  fi
+}
+
+call_bool_service() {
+  service_name=$1
+  service_value=$2
+  timeout 8s ros2 service call "$service_name" std_srvs/srv/SetBool "{data: $service_value}"
+}
+
+usage() {
+  echo "用法：./fleet.sh <命令> [参数]"
+  echo
+  echo "命令："
+  echo "  up                 一键启动中央机整套双车系统（默认保持急停）"
+  echo "  down               先急停，再关闭一键启动的整套系统"
+  echo "  status             查看一键启动的各组件状态"
+  echo "  enable             启用两车门控和 MQTT 下发，最后解除急停"
+  echo "  disable            急停并关闭两车门控和 MQTT 下发"
+  echo "  build              构建并测试"
+  echo "  hyzx               中央机接入 hyzx001 MQTT 遥测并加前缀"
+  echo "  jetson             中央机接入 jetson003 MQTT 遥测并加前缀"
+  echo "  hyzx-edge          车端从本机 /scan、/odom 加前缀"
+  echo "  jetson-edge        车端从本机 /scan、/odom 加前缀"
+  echo "  hyzx-vehicle       HYZX 车端启动本地安全控制链"
+  echo "  jetson-vehicle     Jetson003 车端启动 MQTT 与本地安全控制链"
+  echo "  edge-enable        在车端授权接收器和底盘输出"
+  echo "  edge-disable       在车端立即关闭底盘输出和接收器"
+  echo "  hyzx-gate          启动 hyzx001 车端 Lease 安全门"
+  echo "  jetson-gate        启动 jetson003 车端 Lease 安全门"
+  echo "  hyzx-nav           中央机启动 hyzx001 规划与安全控制链"
+  echo "  jetson-nav         中央机启动 jetson003 规划与安全控制链"
+  echo "  map                 启动slam_toolbox多机器人建图和m-explore融合"
+  echo "  align               只启动静态坐标对齐"
+  echo "  localize MAP.yaml   使用固定地图启动双车定位"
+  echo "  check               检查话题和统一 TF"
+  echo "  topics              查看两车关键话题"
+  echo "  rviz                打开实体双车可视化仪表盘"
+  echo "  estop              触发并保持全车急停"
+  echo "  release-estop      明确解除全车急停（门控仍需单独解锁）"
+  echo
+  echo "本脚本不会自动解锁底盘。"
+}
+
+command_name=${1:-help}
+
+case "$command_name" in
+  up)
+    if ! command -v tmux >/dev/null 2>&1; then
+      echo "错误：缺少 tmux。请先安装：sudo apt install tmux" >&2
+      exit 1
+    fi
+    if tmux has-session -t aaa_multirobot_slam 2>/dev/null; then
+      echo "整套系统已经在 tmux 会话 aaa_multirobot_slam 中运行。"
+      echo "查看：./fleet.sh status"
+      exit 0
+    fi
+    if pgrep -f "ros2 launch aaa_real_multi_robot" >/dev/null 2>&1; then
+      echo "错误：检测到手工启动的 aaa_real_multi_robot 进程。" >&2
+      echo "请先在旧终端按 Ctrl+C，确认全部退出后再运行 ./fleet.sh up。" >&2
+      exit 1
+    fi
+    tmux new-session -d -s aaa_multirobot_slam -n hyzx -c "$fleet_workspace" "./fleet.sh hyzx"
+    tmux set-option -t aaa_multirobot_slam remain-on-exit on
+    tmux new-window -t aaa_multirobot_slam -n jetson -c "$fleet_workspace" "./fleet.sh jetson"
+    tmux new-window -t aaa_multirobot_slam -n hyzx-plan -c "$fleet_workspace" "./fleet.sh hyzx-plan"
+    tmux new-window -t aaa_multirobot_slam -n jetson-plan -c "$fleet_workspace" "./fleet.sh jetson-plan"
+    tmux new-window -t aaa_multirobot_slam -n hyzx-path -c "$fleet_workspace" "./fleet.sh hyzx-path"
+    tmux new-window -t aaa_multirobot_slam -n jetson-path -c "$fleet_workspace" "./fleet.sh jetson-path"
+    tmux new-window -t aaa_multirobot_slam -n mission -c "$fleet_workspace" "./fleet.sh mission"
+    tmux new-window -t aaa_multirobot_slam -n map -c "$fleet_workspace" \
+      "while ! ./fleet.sh map; do echo '等待两车 scan/odom 就绪，3 秒后重试...'; sleep 3; done"
+    tmux new-window -t aaa_multirobot_slam -n rviz -c "$fleet_workspace" "sleep 10; ./fleet.sh rviz"
+    echo "整套系统已启动，默认保持急停。"
+    echo "查看状态：./fleet.sh status"
+    echo "确认现场安全后授权：./fleet.sh enable"
+    ;;
+  down)
+    source_integration
+    call_bool_service /swarm/set_emergency_stop true >/dev/null 2>&1 || true
+    if command -v tmux >/dev/null 2>&1 && tmux has-session -t aaa_multirobot_slam 2>/dev/null; then
+      tmux kill-session -t aaa_multirobot_slam
+      echo "已急停并关闭 aaa_multirobot_slam 整套系统。"
+    else
+      echo "已请求急停；没有找到 aaa_multirobot_slam 会话。"
+    fi
+    ;;
+  status)
+    if command -v tmux >/dev/null 2>&1 && tmux has-session -t aaa_multirobot_slam 2>/dev/null; then
+      tmux list-windows -t aaa_multirobot_slam \
+        -F '#{window_index} #{window_name} #{?pane_dead,FAILED,OK} #{pane_current_command}'
+      echo "查看某窗口：tmux attach -t aaa_multirobot_slam"
+    else
+      echo "aaa_multirobot_slam 未运行。"
+      exit 1
+    fi
+    ;;
+  enable)
+    source_integration
+    if ! ros2 node list 2>/dev/null | grep -qx /fleet_coordinator; then
+      echo "错误：/fleet_coordinator 未运行，无法签发运动 Lease。" >&2
+      echo "系统保持/恢复急停。请重新启动 map，或使用 ./fleet.sh up。" >&2
+      call_bool_service /swarm/set_emergency_stop true >/dev/null 2>&1 || true
+      exit 1
+    fi
+    if ! timeout 15s ros2 run aaa_real_multi_robot system_audit; then
+      echo "错误：系统健康检查未通过，不允许解除急停。" >&2
+      call_bool_service /swarm/set_emergency_stop true >/dev/null 2>&1 || true
+      exit 1
+    fi
+    for topic in /hyzx001/scan /hyzx001/odom /jetson003/scan /jetson003/odom /swarm/map; do
+      if ! timeout 20s ros2 topic echo "$topic" --once \
+        --qos-reliability best_effort >/dev/null 2>&1; then
+        echo "错误：$topic 没有实时数据，不允许解除急停。" >&2
+        call_bool_service /swarm/set_emergency_stop true >/dev/null 2>&1 || true
+        exit 1
+      fi
+    done
+    for service in \
+      /hyzx001/lease_gate/enable \
+      /jetson003/lease_gate/enable \
+      /hyzx001_ingress/mqtt_cloud_bridge/enable_commands \
+      /jetson003_ingress/mqtt_cloud_bridge/enable_commands; do
+      if ! ros2 service type "$service" >/dev/null 2>&1; then
+        echo "错误：服务未就绪：$service" >&2
+        echo "系统保持急停。" >&2
+        exit 1
+      fi
+      call_bool_service "$service" true
+    done
+    call_bool_service /swarm/set_emergency_stop false
+    echo "两车控制链已授权；是否运动仍由目标、TF、路径和防碰撞 Lease 决定。"
+    ;;
+  disable)
+    source_integration
+    call_bool_service /swarm/set_emergency_stop true || true
+    for service in \
+      /hyzx001/lease_gate/enable \
+      /jetson003/lease_gate/enable \
+      /hyzx001_ingress/mqtt_cloud_bridge/enable_commands \
+      /jetson003_ingress/mqtt_cloud_bridge/enable_commands; do
+      call_bool_service "$service" false >/dev/null 2>&1 || true
+    done
+    echo "两车已急停，门控和 MQTT 命令下发均已关闭。"
+    ;;
+  build)
+    exec "$fleet_workspace/build_workspace.sh"
+    ;;
+  hyzx)
+    source_integration
+    load_env_file "$fleet_workspace/.mqtt.env"
+    load_env_file "$fleet_workspace/.hyzx_mqtt.env"
+    exec ros2 launch aaa_real_multi_robot cloud_ingress.launch.py \
+      robot_name:=hyzx001 \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/hyzx_mqtt_cloud.yaml" \
+      adapter_params:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/hyzx001_adapter.yaml"
+    ;;
+  jetson)
+    source_integration
+    load_env_file "$fleet_workspace/.mqtt.env"
+    load_env_file "$fleet_workspace/.jetson003_mqtt.env"
+    exec ros2 launch aaa_real_multi_robot cloud_ingress.launch.py \
+      robot_name:=jetson003 \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/jetson003_mqtt_cloud.yaml" \
+      adapter_params:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/jetson003_adapter.yaml"
+    ;;
+  hyzx-edge)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot edge_adapter.launch.py \
+      robot_name:=hyzx001 \
+      config_file:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/hyzx001_adapter.yaml"
+    ;;
+  jetson-edge)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot edge_adapter.launch.py \
+      robot_name:=jetson003 \
+      config_file:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/jetson003_adapter.yaml"
+    ;;
+  hyzx-vehicle)
+    source_integration
+    exec ros2 launch aaa_navigation hyzx_edge.launch.py
+    ;;
+  jetson-vehicle)
+    source_integration
+    load_env_file "$fleet_workspace/.mqtt.env"
+    load_env_file "$fleet_workspace/.jetson003_mqtt.env"
+    exec ros2 launch aaa_navigation jetson003_mqtt_edge.launch.py
+    ;;
+  edge-enable)
+    source_integration
+    receiver_found=false
+    if ros2 service type /edge_command_receiver/arm >/dev/null 2>&1; then
+      call_bool_service /edge_command_receiver/arm true
+      receiver_found=true
+    fi
+    if ! ros2 service type /aaa_cmd_gateway/enable >/dev/null 2>&1; then
+      echo "错误：/aaa_cmd_gateway/enable 未就绪，请先启动对应 vehicle 命令。" >&2
+      exit 1
+    fi
+    call_bool_service /aaa_cmd_gateway/enable true
+    if [ "$receiver_found" = true ]; then
+      echo "车端接收器与底盘输出已授权。"
+    else
+      echo "Jetson MQTT 接收链与底盘输出已授权。"
+    fi
+    ;;
+  edge-disable)
+    source_integration
+    call_bool_service /aaa_cmd_gateway/enable false >/dev/null 2>&1 || true
+    call_bool_service /edge_command_receiver/arm false >/dev/null 2>&1 || true
+    echo "车端底盘输出已关闭并清零。"
+    ;;
+  hyzx-gate)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot edge_safety.launch.py \
+      robot_name:=hyzx001 \
+      config_file:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/hyzx001_lease_gate.yaml"
+    ;;
+  jetson-gate)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot edge_safety.launch.py \
+      robot_name:=jetson003 \
+      config_file:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/jetson003_lease_gate.yaml"
+    ;;
+  hyzx-nav)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot robot_navigation.launch.py \
+      robot_name:=hyzx001 \
+      base_frame:=hyzx001/base_footprint \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/hyzx_mqtt_cloud.yaml" \
+      gate_params:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/hyzx001_lease_gate.yaml"
+    ;;
+  jetson-nav)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot robot_navigation.launch.py \
+      robot_name:=jetson003 \
+      base_frame:=jetson003/base_link \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/jetson003_mqtt_cloud.yaml" \
+      gate_params:="$fleet_install/aaa_real_multi_robot/share/aaa_real_multi_robot/config/jetson003_lease_gate.yaml"
+    ;;
+  hyzx-plan)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot robot_path_planning.launch.py \
+      robot_name:=hyzx001 base_frame:=hyzx001/base_footprint \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/hyzx_mqtt_cloud.yaml"
+    ;;
+  jetson-plan)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot robot_path_planning.launch.py \
+      robot_name:=jetson003 base_frame:=jetson003/base_link \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/jetson003_mqtt_cloud.yaml"
+    ;;
+  hyzx-path)
+    source_integration
+    load_env_file "$fleet_workspace/.mqtt.env"
+    load_env_file "$fleet_workspace/.hyzx_mqtt.env"
+    exec ros2 launch aaa_real_multi_robot path_transport.launch.py \
+      robot_name:=hyzx001 robot_id:=2 \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/hyzx_mqtt_cloud.yaml"
+    ;;
+  jetson-path)
+    source_integration
+    load_env_file "$fleet_workspace/.mqtt.env"
+    load_env_file "$fleet_workspace/.jetson003_mqtt.env"
+    exec ros2 launch aaa_real_multi_robot path_transport.launch.py \
+      robot_name:=jetson003 robot_id:=1 \
+      upstream_params:="$fleet_install/aaa_navigation/share/aaa_navigation/config/jetson003_mqtt_cloud.yaml"
+    ;;
+  mission)
+    source_integration
+    exec ros2 launch aaa_search_manager mission_manager.launch.py
+    ;;
+  map)
+    source_integration
+    require_fleet_data
+    exec ros2 launch aaa_real_multi_robot central_mapping.launch.py \
+      start_slam:=true start_fleet_coordinator:=true
+    ;;
+  align)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot static_alignment_only.launch.py
+    ;;
+  localize)
+    if [ "$#" -ne 2 ]; then
+      echo "错误：请提供地图，例如 ./fleet.sh localize /data/maps/site_map.yaml" >&2
+      exit 2
+    fi
+    if [ ! -f "$2" ]; then
+      echo "错误：地图文件不存在：$2" >&2
+      exit 2
+    fi
+    source_integration
+    require_fleet_data
+    exec ros2 launch aaa_real_multi_robot central_localization.launch.py map:="$2"
+    ;;
+  check)
+    source_integration
+    exec ros2 run aaa_real_multi_robot system_audit
+    ;;
+  topics)
+    source_integration
+    ros2 topic list | awk '/^\/(hyzx001|jetson003|swarm)\// {print}' | sort
+    ;;
+  rviz)
+    source_integration
+    exec ros2 launch aaa_real_multi_robot visualization.launch.py
+    ;;
+  estop)
+    source_integration
+    call_bool_service /swarm/set_emergency_stop true
+    ;;
+  release-estop)
+    source_integration
+    call_bool_service /swarm/set_emergency_stop false
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "错误：未知命令 '$command_name'" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

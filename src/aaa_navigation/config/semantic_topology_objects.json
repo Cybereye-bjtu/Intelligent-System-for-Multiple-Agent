@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "topology_objects": [
+    {
+      "target": "box",
+      "attributes": ["white"],
+      "text": "school",
+      "relations": []
+    },
+    {
+      "target": "box",
+      "attributes": ["white"],
+      "text": "bank",
+      "relations": []
+    }
+  ]
+}

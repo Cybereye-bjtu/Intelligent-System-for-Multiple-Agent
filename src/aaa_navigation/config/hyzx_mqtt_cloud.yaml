@@ -1,0 +1,200 @@
+mqtt_cloud_bridge:
+  ros__parameters:
+    use_sim_time: false
+    broker: ca15b49bc8b442638f0cade1e45585ce.s1.eu.hivemq.cloud
+    port: 8883
+    # HiveMQ code 16 was observed with the previous 20 s keepalive.
+    keepalive_seconds: 60
+    client_id: aaa-hyzx-cloud
+    username_env: HYZX_MQTT_USERNAME
+    password_env: HYZX_MQTT_PASSWORD
+    ca_file: /etc/ssl/certs/ca-certificates.crt
+    tls_insecure: false
+
+    scan_mqtt_topic: robot/hyzx001/telemetry/scan
+    odom_mqtt_topic: robot/hyzx001/telemetry/odom
+    tf_mqtt_topic: robot/hyzx001/telemetry/tf
+    tf_static_mqtt_topic: robot/hyzx001/telemetry/tf_static
+    status_mqtt_topic: robot/hyzx001/telemetry/status
+    command_mqtt_topic: edge/hyzx001/command
+    command_payload_format: ros_publish
+
+    scan_ros_topic: /scan
+    odom_ros_topic: /odom
+    command_ros_topic: /cmd_vel_cloud
+    robot_status_ros_topic: /robot/status
+    hardware_id: hyzx001
+
+    # The deployed edge agent accepts a generic ROS publish command envelope.
+    publish_command_control: true
+    command_frequency: 10.0
+    command_timeout: 0.35
+    # Conservative commissioning limits. Keep rotation deliberately slow while
+    # validating the differential-drive chassis on the floor.
+    max_linear_velocity: 0.15
+    max_angular_velocity: 0.20
+    odom_frame: odom_combined
+    base_frame: base_footprint
+    laser_frame: laser
+    strip_leading_slashes: true
+    # 空占位不会生成别名，同时避免 ROS launch 无法推断空数组类型。
+    frame_aliases: [""]
+    # Use edge_agent's common envelope clock for scan and odom. Raw lidar
+    # headers run about 0.596 s ahead of odometry, while broker receipt time
+    # has measured 0.3-0.8 s bursts. Envelope time removes both distortions.
+    use_envelope_timestamp: true
+    # Retain receipt-time fallback for telemetry without an envelope stamp.
+    restamp_telemetry: true
+    # Do not replay old network frames into TF/SLAM. These limits are above
+    # the measured normal delay but below the multi-second failure bursts.
+    max_envelope_age: 1.50
+    max_queue_age: 0.50
+    # Compact edge payload encodes LaserScan ranges as integer millimetres.
+    compact_range_scale: 0.001
+    compact_scan_time: 0.083
+    # The rotating lidar currently varies between roughly 1202 and 1208
+    # samples per revolution. Slam Toolbox requires fixed scan geometry.
+    compact_scan_beam_count: 1205
+    # The live compact odometry currently reports a non-planar z component;
+    # force the 2D navigation transform onto the ground plane.
+    force_planar_odom: true
+    publish_odom_tf: true
+    # Cloud Slam Toolbox owns map->odom. The /odom message reconstructs
+    # odom_combined->base_footprint. Keep base_footprint->base_link from the
+    # vehicle TF stream; reconstruct the observed identity odom link below.
+    drop_tf_pairs:
+      - map->odom
+      - map->odom_combined
+      - odom->odom_combined
+      - odom_combined->base_footprint
+      - base_footprint->laser
+    # Reconstruct the measured base_footprint->laser mounting transform in
+    # case the one-shot /tf_static MQTT message was missed.
+    publish_configured_laser_tf: true
+    # The live edge sends identity odom->odom_combined at only about 1.4 Hz,
+    # with gaps above 1 s. Restore the observed invariant link as static so
+    # 12 Hz scans always have a complete TF chain.
+    publish_configured_odom_link_tf: true
+    odom_parent_frame: odom
+    laser_x: 0.048
+    laser_y: 0.0
+    laser_z: 0.18
+    laser_yaw: 0.0
+
+scan_preprocessor:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /scan
+    output_topic: /scan_filtered
+    # LSM10 reports 0--200 m. Ignore zero/near-field invalid returns and use
+    # a practical indoor mapping window; the raw /scan remains unchanged.
+    range_min: 0.05
+    range_max: 20.0
+    median_window: 3
+    filter_rear_self_returns: false
+    rear_start_angle_deg: 125.0
+    rear_self_return_max: 0.30
+
+esdf_mapper:
+  ros__parameters:
+    use_sim_time: false
+    map_topic: /map
+    output_topic: /esdf_map
+    map_subscription_transient_local: false
+    occupied_threshold: 65
+    # 0.185 m chassis width: half-width plus about 5.8 cm margin.
+    inflation_radius: 0.15
+    max_distance: 0.80
+    # Unknown remains expensive but traversable during initial mapping.
+    unknown_cost: 80
+    padding_meters: 1.0
+
+astar_planner:
+  ros__parameters:
+    use_sim_time: false
+    costmap_topic: /esdf_map
+    goal_topic: /goal_pose
+    path_topic: /global_path
+    map_frame: map
+    robot_frame: base_footprint
+    planning_frequency: 2.0
+    lethal_cost: 100
+    allow_diagonal: true
+    clearance_weight: 3.0
+    turn_weight: 0.15
+    goal_tolerance: 0.12
+    max_expansions: 500000
+    # Preserve A* corners while giving VFH a continuous local path. Without
+    # this, line-of-sight simplification commonly produced only 2 waypoints.
+    path_resample_spacing: 0.10
+
+vfh_controller:
+  ros__parameters:
+    use_sim_time: false
+    scan_topic: /scan_filtered
+    path_topic: /global_path
+    nominal_cmd_topic: /cmd_vel_cloud_raw
+    map_frame: map
+    robot_frame: base_footprint
+    control_frequency: 10.0
+    scan_timeout: 0.75
+    lookahead_distance: 0.60
+    corner_search_distance: 0.90
+    corner_angle_threshold_deg: 25.0
+    outward_shift_gain: 0.10
+    outward_shift_max: 0.10
+    goal_tolerance: 0.15
+    sectors: 120
+    histogram_max_range: 3.0
+    obstacle_threshold: 0.78
+    robot_width: 0.185
+    valley_safety_margin_deg: 10.0
+    heading_weight: 5.0
+    previous_heading_weight: 2.0
+    clearance_weight: 2.0
+    max_linear_velocity: 0.15
+    max_angular_velocity: 0.20
+    max_linear_acceleration: 0.20
+    max_angular_acceleration: 0.30
+    # RViz-only scaling; does not change VFH obstacle calculations.
+    debug_marker_scale: 0.40
+
+cloud_command_sender:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /cmd_vel_cloud_safe
+    output_topic: /cmd_vel_cloud
+    heartbeat_topic: /cloud_heartbeat
+    publish_frequency: 10.0
+    heartbeat_frequency: 5.0
+    input_timeout: 0.30
+    max_linear_velocity: 0.15
+    max_angular_velocity: 0.20
+    base_frame: base_footprint
+
+safety_barrier:
+  ros__parameters:
+    use_sim_time: false
+    scan_topic: /scan_filtered
+    odom_topic: /odom
+    nominal_cmd_topic: /cmd_vel_cloud_raw
+    output_cmd_topic: /cmd_vel_cloud_safe
+    control_frequency: 20.0
+    # WAN gaps must stop motion; fresh data automatically resumes filtering.
+    scan_timeout: 0.75
+    command_timeout: 0.35
+    odom_timeout: 0.75
+    # Values are for the 0.27 x 0.185 m chassis, not the larger Isaac robot.
+    base_clearance: 0.10
+    reaction_time: 0.40
+    braking_deceleration: 0.30
+    hard_stop_distance: 0.10
+    slow_margin: 0.10
+    front_half_angle_deg: 35.0
+    side_angle_min_deg: 30.0
+    side_angle_max_deg: 100.0
+    escape_angular_velocity: 0.15
+    allow_escape_rotation: false
+    max_linear_velocity: 0.15
+    max_angular_velocity: 0.20
+    robot_frame: base_footprint

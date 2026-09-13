@@ -1,0 +1,253 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Background Color: 36; 40; 44
+    Fixed Frame: site_map
+    Frame Rate: 30
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Site Grid
+      Enabled: true
+      Alpha: 0.25
+      Cell Size: 1
+      Plane Cell Count: 40
+    - Class: rviz_default_plugins/Map
+      Name: 1 Unified Navigation Map
+      Enabled: true
+      Alpha: 0.88
+      Color Scheme: map
+      Draw Behind: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /swarm/map
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /swarm/map_updates
+    - Class: rviz_default_plugins/Map
+      Name: Debug - hyzx001 Local Map
+      Enabled: false
+      Alpha: 0.55
+      Color Scheme: map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /hyzx001/map
+    - Class: rviz_default_plugins/Map
+      Name: Debug - jetson003 Local Map
+      Enabled: false
+      Alpha: 0.55
+      Color Scheme: map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /jetson003/map
+    - Class: rviz_default_plugins/Map
+      Name: Debug - m-explore Reference
+      Enabled: false
+      Alpha: 0.45
+      Color Scheme: map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /swarm/map_mexplore
+    - Class: rviz_default_plugins/Map
+      Name: Debug - hyzx001 ESDF
+      Enabled: false
+      Alpha: 0.40
+      Color Scheme: costmap
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /hyzx001/esdf_map
+    - Class: rviz_default_plugins/Map
+      Name: Debug - jetson003 ESDF
+      Enabled: false
+      Alpha: 0.40
+      Color Scheme: costmap
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /jetson003/esdf_map
+    - Class: rviz_default_plugins/LaserScan
+      Name: 2 hyzx001 Mapping Scan
+      Enabled: true
+      Color: 25; 140; 255
+      Size (Pixels): 2
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /hyzx001/scan_mapping_filtered
+    - Class: rviz_default_plugins/LaserScan
+      Name: 3 jetson003 Mapping Scan
+      Enabled: true
+      Color: 255; 110; 30
+      Size (Pixels): 2
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /jetson003/scan_mapping_filtered
+    - Class: rviz_default_plugins/Odometry
+      Name: Debug - hyzx001 Odometry
+      Enabled: false
+      Keep: 30
+      Position Tolerance: 0.05
+      Angle Tolerance: 0.05
+      Shape:
+        Value: Axes
+        Axes Length: 0.30
+        Axes Radius: 0.02
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /hyzx001/odom
+    - Class: rviz_default_plugins/Odometry
+      Name: Debug - jetson003 Odometry
+      Enabled: false
+      Keep: 30
+      Position Tolerance: 0.05
+      Angle Tolerance: 0.05
+      Shape:
+        Value: Axes
+        Axes Length: 0.30
+        Axes Radius: 0.02
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /jetson003/odom
+    - Class: rviz_default_plugins/Path
+      Name: 4 hyzx001 Global Path
+      Enabled: true
+      Color: 25; 140; 255
+      Line Style: Lines
+      Line Width: 0.06
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /hyzx001/global_path
+    - Class: rviz_default_plugins/Path
+      Name: 5 jetson003 Global Path
+      Enabled: true
+      Color: 255; 110; 30
+      Line Style: Lines
+      Line Width: 0.06
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /jetson003/global_path
+    - Class: rviz_default_plugins/MarkerArray
+      Name: 6 Fleet Robots
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /swarm/robot_markers
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Debug - hyzx001 VFH
+      Enabled: false
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /hyzx001/vfh/debug/markers
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Debug - jetson003 VFH
+      Enabled: false
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /jetson003/vfh/debug/markers
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Debug - hyzx001 Safety
+      Enabled: false
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /hyzx001/safety/debug/markers
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Debug - jetson003 Safety
+      Enabled: false
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /jetson003/safety/debug/markers
+    - Class: rviz_default_plugins/TF
+      Name: Debug - Unified TF Tree
+      Enabled: false
+      Frame Timeout: 5
+      Marker Scale: 0.30
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /hyzx001/initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /hyzx001/goal_pose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /jetson003/goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Angle: 0
+      Scale: 35
+      Target Frame: site_map
+      X: 0
+      Y: 0
+    Saved: ~
+Window Geometry:
+  Width: 1600
+  Height: 1000

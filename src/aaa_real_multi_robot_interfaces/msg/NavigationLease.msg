@@ -1,0 +1,9 @@
+std_msgs/Header header
+uint32 robot_id
+bool permit_motion
+float32 max_linear_speed
+float32 max_angular_speed
+builtin_interfaces/Time valid_until
+uint64 map_epoch
+string reservation_id
+string reason

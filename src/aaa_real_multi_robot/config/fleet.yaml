@@ -1,0 +1,78 @@
+/**:
+  ros__parameters:
+    use_sim_time: false
+    global_frame: site_map
+    robot_names: [hyzx001, jetson003]
+
+/**/alignment_manager:
+  ros__parameters:
+    # Same heading; hyzx001 is 0.30 m to the left (+Y) of jetson003.
+    initial_poses_xy_yaw_deg: [0.0, 0.30, 0.0, 0.0, 0.0, 0.0]
+    updates_enabled: false
+    confirmations_required: 5
+    candidate_translation_tolerance: 0.05
+    candidate_rotation_tolerance_deg: 1.0
+    max_update_translation: 0.20
+    max_update_rotation_deg: 3.0
+    publish_frequency: 5.0
+    candidate_max_age: 1.0
+    max_candidate_z: 0.10
+    max_candidate_tilt_deg: 3.0
+    map_timeout: 5.0
+    anchor_robot: hyzx001
+    max_calibration_translation: 10.0
+    max_calibration_rotation_deg: 180.0
+
+/**/map_fuser:
+  ros__parameters:
+    # Navigation-grade fusion. Unlike map_merge's OpenCV image compositor,
+    # this preserves OccupancyGrid origin/resolution and applies the same
+    # site_map -> <robot>/map transforms used by RViz and navigation.
+    output_topic: /swarm/map
+    resolution: 0.05
+    publish_frequency: 1.0
+    occupied_threshold: 65
+    padding: 1.0
+    max_output_cells: 8000000
+    map_timeout: 5.0
+    tf_timeout: 1.0
+
+/**/fleet_coordinator:
+  ros__parameters:
+    base_frames: [hyzx001/base_footprint, jetson003/base_link]
+    # Resolve the unavoidable 0.30 m initial overlap deterministically:
+    # move the white HYZX vehicle clear before releasing Jetson003.
+    conflict_priority: [hyzx001, jetson003]
+    control_frequency: 10.0
+    lease_duration: 0.35
+    nominal_speed: 0.10
+    max_angular_speed: 0.20
+    trajectory_resolution: 0.10
+    safety_radius: 0.30
+    time_window: 1.50
+    coordination_horizon: 15.0
+    winner_hold_time: 2.0
+    path_timeout: 2.0
+    tf_timeout: 0.50
+
+/**/wfd_explorer:
+  ros__parameters:
+    map_topic: /swarm/map
+    update_frequency: 1.0
+    map_timeout: 5.0
+    free_threshold: 20
+    min_frontier_cells: 8
+    goal_tolerance: 0.35
+    goal_valid_radius: 0.75
+    min_goal_separation: 1.25
+    distance_weight: 1.0
+    information_gain_weight: 2.0
+    completion_confirmations: 5
+    frontier_standoff_distance: 0.50
+    unreachable_cooldown: 30.0
+    unreachable_rejection_radius: 0.75
+    min_goal_distance: 0.80
+
+/**/system_audit:
+  ros__parameters:
+    discovery_timeout: 10.0

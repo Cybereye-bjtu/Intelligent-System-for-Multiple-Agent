@@ -1,0 +1,64 @@
+scan_preprocessor:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /scan
+    output_topic: /scan_filtered
+    range_min: 0.10
+    range_max: 10.0
+    median_window: 3
+    filter_rear_self_returns: false
+    rear_start_angle_deg: 125.0
+    rear_self_return_max: 0.30
+
+edge_command_receiver:
+  ros__parameters:
+    use_sim_time: false
+    command_topic: /cmd_vel_cloud
+    heartbeat_topic: /cloud_heartbeat
+    output_topic: /cmd_vel_edge_nominal
+    status_topic: /aaa/network_status
+    control_frequency: 20.0
+    status_frequency: 2.0
+    command_timeout: 0.35
+    heartbeat_timeout: 0.60
+    max_source_age: 0.30
+    max_future_skew: 0.10
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.30
+    armed_on_start: false
+
+safety_barrier:
+  ros__parameters:
+    use_sim_time: false
+    scan_topic: /scan_filtered
+    odom_topic: /odom
+    nominal_cmd_topic: /cmd_vel_edge_nominal
+    output_cmd_topic: /cmd_vel_aaa
+    control_frequency: 20.0
+    scan_timeout: 0.35
+    command_timeout: 0.35
+    odom_timeout: 0.50
+    base_clearance: 0.16
+    reaction_time: 0.40
+    braking_deceleration: 0.30
+    hard_stop_distance: 0.20
+    slow_margin: 0.30
+    front_half_angle_deg: 45.0
+    side_angle_min_deg: 30.0
+    side_angle_max_deg: 100.0
+    allow_escape_rotation: true
+    escape_angular_velocity: 0.30
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.30
+    robot_frame: base_link
+
+aaa_cmd_gateway:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /cmd_vel_aaa
+    output_topic: /cmd_vel
+    control_frequency: 20.0
+    command_timeout: 0.35
+    max_linear_velocity: 0.10
+    max_angular_velocity: 0.30
+    enabled_on_start: false

@@ -1,0 +1,15 @@
+/**/amcl:
+  ros__parameters:
+    use_sim_time: false
+    global_frame_id: site_map
+    tf_broadcast: true
+    transform_tolerance: 0.3
+    scan_topic: scan
+    min_particles: 500
+    max_particles: 2000
+    update_min_d: 0.10
+    update_min_a: 0.10
+    laser_model_type: likelihood_field
+    laser_max_range: 8.0
+    set_initial_pose: false
+

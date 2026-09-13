@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: cmd_vel_cloud_safe
+    output_topic: cmd_vel_leased
+    lease_topic: fleet/lease
+    command_timeout: 0.35
+    lease_receipt_timeout: 0.50
+    publish_frequency: 20.0
+    max_linear_speed: 0.10
+    max_angular_speed: 0.20
+    robot_id: 0
+    global_frame: site_map
