@@ -1,6 +1,8 @@
 .mqtt.env
 .hyzx_mqtt.env
 .jetson003_mqtt.env
+*.env
+!*.env.example
 build/
 install/
 log/
@@ -12,6 +14,9 @@ build.*/
 install.*/
 log.*/
 *.tar.gz
+*.orig
+*.pre_*
+backups/
 kettle_rgbd_capture/
 jetson003_target_capture/
 semantic_topology_output/

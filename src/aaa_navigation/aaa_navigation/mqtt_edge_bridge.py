@@ -52,6 +52,7 @@ class MqttEdgeBridge(Node):
             "command_timeout": 0.20,
             "command_frequency": 20.0,
             "status_frequency": 1.0,
+            "publish_telemetry": True,
             "max_linear_velocity": 0.10,
             "max_angular_velocity": 0.30,
         }
@@ -70,36 +71,46 @@ class MqttEdgeBridge(Node):
         self.command_publisher = self.create_publisher(
             Twist, str(self.get_parameter("command_ros_topic").value), 1
         )
-        self.create_subscription(
-            LaserScan,
-            str(self.get_parameter("scan_ros_topic").value),
-            self.scan_callback,
-            qos_profile_sensor_data,
+        self.publish_telemetry = bool(
+            self.get_parameter("publish_telemetry").value
         )
-        self.create_subscription(
-            Odometry,
-            str(self.get_parameter("odom_ros_topic").value),
-            self.odom_callback,
-            qos_profile_sensor_data,
-        )
-        self.create_subscription(
-            TFMessage,
-            str(self.get_parameter("tf_ros_topic").value),
-            self.tf_callback,
-            qos_profile_sensor_data,
-        )
+        self.telemetry_subscriptions = []
+        if self.publish_telemetry:
+            self.telemetry_subscriptions.extend([
+                self.create_subscription(
+                    LaserScan,
+                    str(self.get_parameter("scan_ros_topic").value),
+                    self.scan_callback,
+                    qos_profile_sensor_data,
+                ),
+                self.create_subscription(
+                    Odometry,
+                    str(self.get_parameter("odom_ros_topic").value),
+                    self.odom_callback,
+                    qos_profile_sensor_data,
+                ),
+                self.create_subscription(
+                    TFMessage,
+                    str(self.get_parameter("tf_ros_topic").value),
+                    self.tf_callback,
+                    qos_profile_sensor_data,
+                ),
+            ])
         static_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
-        self.create_subscription(
-            TFMessage,
-            str(self.get_parameter("tf_static_ros_topic").value),
-            self.tf_static_callback,
-            static_qos,
-        )
+        if self.publish_telemetry:
+            self.telemetry_subscriptions.append(
+                self.create_subscription(
+                    TFMessage,
+                    str(self.get_parameter("tf_static_ros_topic").value),
+                    self.tf_static_callback,
+                    static_qos,
+                )
+            )
 
         self.client = self._create_client()
         self.client.on_connect = self.on_connect
@@ -247,7 +258,8 @@ class MqttEdgeBridge(Node):
                 str(self.get_parameter("command_mqtt_topic").value), qos=1
             )
             self.get_logger().info(
-                "MQTT connected; telemetry publishing active"
+                "MQTT connected; command receiver active"
+                + ("; telemetry publishing active" if self.publish_telemetry else "")
             )
             if self.last_static_transforms:
                 self._publish(

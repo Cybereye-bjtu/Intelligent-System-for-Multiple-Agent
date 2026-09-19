@@ -31,17 +31,26 @@ vfh_controller:
     control_frequency: 10.0
     # Live LD19 sampling showed an occasional 0.41 s gap during commissioning.
     scan_timeout: 0.60
-    lookahead_distance: 0.60
+    lookahead_distance: 0.30
     goal_tolerance: 0.15
     histogram_max_range: 3.0
-    obstacle_threshold: 0.52
+    # danger = (histogram_max_range - range) / histogram_max_range.  With the
+    # 3 m histogram range, 0.88 starts VFH blocking at roughly 0.36 m.  The
+    # independent safety barrier still slows/stops the chassis at close range.
+    obstacle_threshold: 0.88
     robot_width: 0.212
     valley_safety_margin_deg: 10.0
     max_linear_velocity: 0.10
-    min_effective_linear_velocity: 0.10
+    min_effective_linear_velocity: 0.04
     max_angular_velocity: 0.20
     max_linear_acceleration: 0.15
     max_angular_acceleration: 0.30
+    max_angular_deceleration: 0.80
+    angular_proportional_gain: 0.80
+    align_enter_angle_deg: 25.0
+    align_exit_angle_deg: 8.0
+    heading_deadband_deg: 3.0
+    pose_timeout: 0.20
 
 safety_barrier:
   ros__parameters:
@@ -66,9 +75,9 @@ safety_barrier:
 aaa_cmd_gateway:
   ros__parameters:
     input_topic: /aaa/cmd_vel_safe
-    # Shadow output cannot affect the chassis. Change to /cmd_vel only during
-    # the supervised cutover after the legacy publisher has been stopped.
-    output_topic: /aaa/cmd_vel_staged
+    # The gateway is the sole chassis command publisher after cutover.  It
+    # remains disabled until the fleet control plane explicitly enables it.
+    output_topic: /cmd_vel
     control_frequency: 20.0
     command_timeout: 0.25
     max_linear_velocity: 0.10

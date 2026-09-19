@@ -25,18 +25,22 @@
 
 `map_fuser` 读取 `/<robot>/map` 和统一 TF，以 OccupancyGrid 的真实 origin 和
 resolution 融合并发布 `/swarm/map` (`site_map`)。`multirobot_map_merge`
-发布 `/swarm/map_mexplore`，仅供 A/B 对照。A*、ESDF、VFH、Safety Barrier、
-Lease Gate、MQTT Cloud Sender 和 Fleet Coordinator 均由本项目内源码提供。
+发布 `/swarm/map_mexplore`，仅供 A/B 对照。ESDF、A* 与 Fleet Coordinator 在
+服务器运行；VFH、Safety Barrier 和底盘 Gateway 在 205 车端运行。
 
 控制链仍为：
 
 ```text
-/swarm/map -> A* -> VFH -> Safety Barrier -> Lease Gate
-           -> Cloud Sender -> MQTT Bridge -> 实体底盘
+/swarm/map -> ESDF/A* -> MQTT 路径 -> 车端 VFH
+           -> Safety Barrier -> Gateway -> 实体底盘
 ```
 
-系统启动默认急停。地图存在不代表坐标正确；只有共同墙体重合、两车模型位置符合现场、
+服务器保留监控、任务引导和动态重规划，但不再通过网络逐帧闭环底盘速度。系统启动
+默认急停。地图存在不代表坐标正确；只有共同墙体重合、车辆模型位置符合现场、
 `./fleet.sh check` 为 PASS 后才可解除急停。
+
+新部署仅支持 205 同型号车辆，参见 `deploy/vehicle205/README.md`。每辆车必须配置
+唯一的机器人名称、MQTT client ID 和路径主题。HYZX/200 配置只作为历史兼容保留。
 
 ## 4. 独立环境与凭据
 
