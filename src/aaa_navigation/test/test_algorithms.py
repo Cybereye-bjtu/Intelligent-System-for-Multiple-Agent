@@ -9,9 +9,11 @@ from aaa_navigation.algorithms import (
     corner_aware_target,
     euclidean_distance_transform,
     fuzzy_velocity,
+    regulated_angular_velocity,
     resample_polyline,
     simplify_path,
     transform_polar_points,
+    update_alignment_state,
 )
 
 
@@ -132,3 +134,37 @@ def test_transform_polar_points_applies_laser_offset():
     assert np.isclose(angles[0], 0.0)
     assert np.isclose(distances[1], math.hypot(0.05, 1.0))
     assert angles[1] < math.pi / 2.0
+
+
+def test_alignment_state_uses_hysteresis():
+    assert update_alignment_state(
+        False, math.radians(30.0), math.radians(25.0), math.radians(8.0)
+    )
+    assert update_alignment_state(
+        True, math.radians(10.0), math.radians(25.0), math.radians(8.0)
+    )
+    assert not update_alignment_state(
+        True, math.radians(5.0), math.radians(25.0), math.radians(8.0)
+    )
+    # Alignment follows the path-heading error, not a temporarily small VFH
+    # valley heading from a partial-field-of-view lidar.
+    assert update_alignment_state(
+        False, math.radians(80.0), math.radians(25.0), math.radians(8.0)
+    )
+
+
+def test_regulated_angular_velocity_brakes_and_has_deadband():
+    assert regulated_angular_velocity(
+        math.radians(2.0), 0.2, 0.8, math.radians(3.0), 0.8
+    ) == 0.0
+    far = regulated_angular_velocity(
+        math.radians(45.0), 0.2, 0.8, math.radians(3.0), 0.8
+    )
+    near = regulated_angular_velocity(
+        math.radians(5.0), 0.2, 0.8, math.radians(3.0), 0.8
+    )
+    reverse = regulated_angular_velocity(
+        math.radians(-5.0), 0.2, 0.8, math.radians(3.0), 0.8
+    )
+    assert 0.0 < near < far <= 0.2
+    assert np.isclose(reverse, -near)

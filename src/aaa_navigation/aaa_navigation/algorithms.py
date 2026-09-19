@@ -543,3 +543,41 @@ def fuzzy_velocity(
         linear = 0.0
     angular = max_angular * math.tanh(1.8 * heading_error)
     return linear, angular
+
+
+def update_alignment_state(
+    aligning: bool,
+    heading_error: float,
+    enter_angle: float,
+    exit_angle: float,
+) -> bool:
+    """Apply hysteresis to rotate-in-place alignment mode."""
+    error = abs(wrap_angle(heading_error))
+    if aligning:
+        return error > exit_angle
+    return error >= enter_angle
+
+
+def regulated_angular_velocity(
+    heading_error: float,
+    max_angular: float,
+    proportional_gain: float,
+    deadband: float,
+    braking_deceleration: float,
+) -> float:
+    """Return a bounded angular target that can stop inside the deadband.
+
+    The square-root bound is the standard stopping-speed relationship
+    ``v <= sqrt(2*a*d)`` applied to angular motion.  It prevents a saturated
+    turn command from being held until the heading error is nearly zero.
+    """
+    error = wrap_angle(heading_error)
+    distance = max(0.0, abs(error) - max(0.0, deadband))
+    if distance <= 0.0:
+        return 0.0
+    magnitude = min(
+        max(0.0, max_angular),
+        max(0.0, proportional_gain) * abs(error),
+        math.sqrt(2.0 * max(0.0, braking_deceleration) * distance),
+    )
+    return math.copysign(magnitude, error)

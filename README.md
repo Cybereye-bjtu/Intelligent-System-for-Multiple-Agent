@@ -1,9 +1,13 @@
-# 实体双车协同 SLAM 与导航
+# AAA 多车协同建图、任务规划与 205 边缘导航
+
+> 新增车辆统一采用 205 同型号平台。HYZX/200 相关文件仅为历史兼容保留，
+> 不再作为新车部署入口。205 车端安装见
+> [deploy/vehicle205/README.md](deploy/vehicle205/README.md)。
 
 这是一个可单独构建、单独 source、单独启动的实体双车项目。项目内已经包含：
 
-- 两车通用的 `aaa_navigation`：MQTT 接入、扫描预处理、ESDF、A*、VFH、
-  Safety Barrier、Cloud Sender 与车端安全网关；
+- 服务器与 205 共享的 `aaa_navigation`：MQTT 路径传输、扫描预处理、ESDF、A*、
+  VFH、Safety Barrier 与车端安全网关；
 - `aaa_real_multi_robot`：frame adapter、坐标对齐、地图融合、Lease Gate、
   车队协调、健康审计与 RViz；
 - 源码版 `slam_toolbox` 和 `m-explore-ros2/multirobot_map_merge`。
@@ -56,7 +60,8 @@ site_map -> hyzx001/map -> hyzx001/odom -> ... -> hyzx001/base_footprint
 site_map -> jetson003/map -> jetson003/odom -> jetson003/base_link
 ```
 
-导航仍消费 `/swarm/map` 和 `site_map`，因此原规划与控制链无需改名或改 topic。
+导航仍消费 `/swarm/map` 和 `site_map`。服务器生成全局路径并通过 MQTT 下发，
+205 车端在本地完成路径跟踪、局部避障和底盘安全输出。
 联合 SLAM 使用独立的 `/<robot>/scan_mapping_filtered`，恢复两个单车项目已有的量程、
 无效值和中值过滤；不会和导航使用的 `/<robot>/scan_filtered` 产生重复发布者。
 HYZX 与 Jetson003 都使用中央机接收时间，并把 scan 配到最近一帧 odom；HYZX 建图
@@ -123,7 +128,8 @@ tmux attach -t aaa_multirobot_slam
 安全链；确认遥测和零速度状态正常后，再在车端执行 `./fleet.sh edge-enable`。车端
 默认不解锁，`./fleet.sh edge-disable` 会立即关断并清零底盘输出。
 
-现场部署与验收见 [部署说明](docs/DEPLOYMENT.md) 和 [验收清单](docs/VALIDATION.md)。
+现场部署与验收见 [部署说明](docs/DEPLOYMENT.md)、[验收清单](docs/VALIDATION.md)
+和[仓库发布流程](docs/REPOSITORY_RELEASE.md)。
 
 ## 能力边界
 

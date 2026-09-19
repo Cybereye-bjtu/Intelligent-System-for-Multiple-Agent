@@ -23,7 +23,9 @@ from .algorithms import (
     choose_vfh_recovery_heading,
     corner_aware_target,
     fuzzy_velocity,
+    regulated_angular_velocity,
     transform_polar_points,
+    update_alignment_state,
     wrap_angle,
     yaw_from_quaternion,
 )
@@ -59,6 +61,12 @@ class VfhController(Node):
             "max_angular_velocity": 0.30,
             "max_linear_acceleration": 0.15,
             "max_angular_acceleration": 0.30,
+            "max_angular_deceleration": 0.80,
+            "angular_proportional_gain": 0.80,
+            "align_enter_angle_deg": 25.0,
+            "align_exit_angle_deg": 8.0,
+            "heading_deadband_deg": 3.0,
+            "pose_timeout": 0.20,
             # Visual-only scale for RViz debug markers. The original marker
             # dimensions were intended for a much larger robot and obscured
             # the path around the 0.277 x 0.212 m Jetson003 chassis.
@@ -96,13 +104,17 @@ class VfhController(Node):
         self.max_angular_accel = float(
             self.get_parameter("max_angular_acceleration").value
         )
+        self.max_angular_decel = float(
+            self.get_parameter("max_angular_deceleration").value
+        )
         self.debug_marker_scale = max(
             0.05, float(self.get_parameter("debug_marker_scale").value)
         )
         self.path = []
         self.scan = None
         self.scan_receipt_time = None
-        self.previous_heading = 0.0
+        self.previous_heading_global = None
+        self.aligning = False
         self.previous_linear = 0.0
         self.previous_angular = 0.0
         self.last_control_time = None
@@ -144,6 +156,9 @@ class VfhController(Node):
             (pose.pose.position.x, pose.pose.position.y)
             for pose in message.poses
         ]
+        if len(self.path) < 2:
+            self.aligning = False
+            self.previous_heading_global = None
 
     def _pose(self):
         transform = self.tf_buffer.lookup_transform(
@@ -152,6 +167,10 @@ class VfhController(Node):
             Time(),
             timeout=Duration(seconds=0.08),
         )
+        stamp = Time.from_msg(transform.header.stamp)
+        age = (self.get_clock().now() - stamp).nanoseconds / 1e9
+        if age > float(self.get_parameter("pose_timeout").value):
+            raise RuntimeError(f"pose transform is stale by {age:.3f} s")
         return (
             transform.transform.translation.x,
             transform.transform.translation.y,
@@ -208,10 +227,16 @@ class VfhController(Node):
             self.previous_linear - self.max_linear_accel * dt,
             self.previous_linear + self.max_linear_accel * dt,
         )
+        angular_rate = (
+            self.max_angular_decel
+            if abs(angular) < abs(self.previous_angular)
+            or angular * self.previous_angular < 0.0
+            else self.max_angular_accel
+        )
         angular = np.clip(
             angular,
-            self.previous_angular - self.max_angular_accel * dt,
-            self.previous_angular + self.max_angular_accel * dt,
+            self.previous_angular - angular_rate * dt,
+            self.previous_angular + angular_rate * dt,
         )
         self.previous_linear = float(linear)
         self.previous_angular = float(angular)
@@ -340,7 +365,7 @@ class VfhController(Node):
             return
         try:
             robot_x, robot_y, robot_yaw = self._pose()
-        except TransformException as error:
+        except (TransformException, RuntimeError) as error:
             self.get_logger().warning(
                 f"Controller waiting for TF: {error}",
                 throttle_duration_sec=2.0,
@@ -399,11 +424,16 @@ class VfhController(Node):
                 )
             ),
         )
+        previous_heading = (
+            target_angle
+            if self.previous_heading_global is None
+            else wrap_angle(self.previous_heading_global - robot_yaw)
+        )
         selected = choose_vfh_heading(
             histogram,
             observed,
             target_angle,
-            self.previous_heading,
+            previous_heading,
             float(self.get_parameter("obstacle_threshold").value),
             self.sector_width,
             minimum_valley_width,
@@ -418,20 +448,55 @@ class VfhController(Node):
                 histogram,
                 observed,
                 target_angle,
-                self.previous_heading,
+                previous_heading,
                 self.sector_width,
             )
-            angular = (
-                self.max_angular * math.tanh(1.8 * selected)
-                if selected is not None
-                else 0.0
-            )
             selected = selected if selected is not None else 0.0
+            angular = regulated_angular_velocity(
+                selected,
+                self.max_angular,
+                float(
+                    self.get_parameter("angular_proportional_gain").value
+                ),
+                math.radians(
+                    float(self.get_parameter("heading_deadband_deg").value)
+                ),
+                self.max_angular_decel,
+            )
         else:
             front = scan_ranges[np.abs(scan_angles) <= math.radians(30.0)]
             front_distance = float(np.min(front)) if front.size else 0.0
             linear, angular = fuzzy_velocity(
                 front_distance, selected, self.max_linear, self.max_angular
+            )
+            # Large path-heading errors must be closed directly against the
+            # path target.  Using the VFH-selected heading here makes a
+            # partial-FOV lidar rotate in small observed-sector increments:
+            # it reaches the current valley edge, stops, then selects another
+            # edge even though the path target is still far from the nose.
+            self.aligning = update_alignment_state(
+                self.aligning,
+                target_angle,
+                math.radians(
+                    float(self.get_parameter("align_enter_angle_deg").value)
+                ),
+                math.radians(
+                    float(self.get_parameter("align_exit_angle_deg").value)
+                ),
+            )
+            if self.aligning:
+                linear = 0.0
+            control_heading = target_angle if self.aligning else selected
+            angular = regulated_angular_velocity(
+                control_heading,
+                self.max_angular,
+                float(
+                    self.get_parameter("angular_proportional_gain").value
+                ),
+                math.radians(
+                    float(self.get_parameter("heading_deadband_deg").value)
+                ),
+                self.max_angular_decel,
             )
             if linear > 0.0:
                 linear = max(linear, self.min_effective_linear)
@@ -440,7 +505,7 @@ class VfhController(Node):
         command.linear.x = linear
         command.angular.z = angular
         self.cmd_publisher.publish(command)
-        self.previous_heading = selected
+        self.previous_heading_global = wrap_angle(robot_yaw + selected)
         self._publish_markers(
             target,
             selected,
