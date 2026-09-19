@@ -6,7 +6,7 @@
 
 这是一个可单独构建、单独 source、单独启动的实体双车项目。项目内已经包含：
 
-- 服务器与 205 共享的 `aaa_navigation`：MQTT 路径传输、扫描预处理、ESDF、A*、
+- 服务器与 Jetson 共享的 `aaa_navigation`：MQTT 路径传输、扫描预处理、ESDF、A*、
   VFH、Safety Barrier 与车端安全网关；
 - `aaa_real_multi_robot`：frame adapter、坐标对齐、地图融合、Lease Gate、
   车队协调、健康审计与 RViz；
