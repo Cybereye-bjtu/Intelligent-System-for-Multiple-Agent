@@ -66,9 +66,9 @@ def test_target_navigator_uses_local_dual_path_models():
     source = (
         CONFIG.parent / "aaa_navigation" / "kettle_navigator.py"
     ).read_text()
-    root = "/home/szhang/workspace/cybereye_system/cybereye_nl_target_pose_white_vehicle"
+    root = "/home/szhang/workspace/cybereye_target/cybereye_nl_target_pose"
     assert f'"cybereye_root": "{root}"' in source
-    assert f'"sam3_runner": "{root}/run_sam3_env.sh"' in source
+    assert f'"sam3_runner": "/home/szhang/workspace/cybereye_target/.venv/bin/python"' in source
     assert '"sam3_checkpoint": "/data2/szhang/model/sam3/sam3.pt"' in source
     assert '"ocr_detection_model": "/data2/szhang/model/PP-OCRv6_medium_det"' in source
     assert '"ocr_recognition_model": "/data2/szhang/model/PP-OCRv6_medium_rec"' in source
